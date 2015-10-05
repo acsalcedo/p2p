@@ -107,6 +107,7 @@ public class Nodo extends Agent {
 
                             /* Si existe un archivo con el substring dado,
                                no manda un mensaje de refusal. */
+                            //TODO Que mande un solo mensaje
                             archivoDisponible = true;
                             System.out.println("Propose Archivo: " + str);
                             reply.setPerformative(ACLMessage.PROPOSE);
