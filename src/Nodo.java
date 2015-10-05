@@ -9,6 +9,8 @@ import jade.lang.acl.ACLMessage;
 import jade.lang.acl.MessageTemplate;
 import java.io.File;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Set;
 
 /**
  * Modulo: Agente Nodo
@@ -41,9 +43,12 @@ public class Nodo extends Agent {
 
         } else {
             // Valores iniciales
-            File archPrueba = new File("ProySOP3.pdf");
+            File archPrueba = new File("ejemplo1.txt");
+            File archPrueba2 = new File("ejemplo2.txt");
+
             catalogo = new HashMap(10);
-            catalogo.put("ProySOP3.pdf", archPrueba);
+            catalogo.put("ejemplo1.txt", archPrueba);
+            catalogo.put("ejemplo2.txt", archPrueba2);
             System.out.println("Modo: Distribuidor");
 
             dfd.setName(getAID());
@@ -80,15 +85,43 @@ public class Nodo extends Agent {
                 // CFP Message received. Process it
                 System.out.println("Peticion recibida de: " + msg.getSender().getName());
                 ACLMessage reply = msg.createReply();
+
                 if (catalogo != null && (catalogo.get(msg.getContent())!= null)) {
+                    System.out.println("Propose Archivo: " + msg.getContent());
                     reply.setPerformative(ACLMessage.PROPOSE);
                     reply.setContent(msg.getContent());
+                    myAgent.send(reply);
                 }
                 else {
-                    reply.setPerformative(ACLMessage.REFUSE);
-                    reply.setContent("Ningun archivo disponible");
+
+                    // Busca si existen archivos que contiene el substring dado
+                    Iterator it = (catalogo.keySet()).iterator();
+                    boolean archivoDisponible = false;
+
+                    while (it.hasNext()) {
+
+                        String str = (it.next()).toString();
+
+                        if (str != null && str.contains(msg.getContent())) {
+                            reply = msg.createReply();
+
+                            /* Si existe un archivo con el substring dado,
+                               no manda un mensaje de refusal. */
+                            archivoDisponible = true;
+                            System.out.println("Propose Archivo: " + str);
+                            reply.setPerformative(ACLMessage.PROPOSE);
+                            reply.setContent(str);
+                            myAgent.send(reply);
+                        }
+                    }
+
+                    if (!archivoDisponible) {
+                        System.out.println("Refuse");
+                        reply.setPerformative(ACLMessage.REFUSE);
+                        reply.setContent("Ningun archivo disponible");
+                        myAgent.send(reply);
+                    }
                 }
-                myAgent.send(reply);
     	    }
             else {
               block();
@@ -115,7 +148,7 @@ public class Nodo extends Agent {
                 try {
                     DFAgentDescription[] result = DFService.search(myAgent, template);
                     // Send the cfp to all sellers
-                    if ( result != null && result.length > 0) {
+                    if (result != null && result.length > 0) {
                         for (int i = 0; i < result.length; ++i) {
                             cfp.addReceiver(result[i].getName());
                         }
