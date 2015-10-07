@@ -28,12 +28,12 @@ import java.util.logging.Logger;
  * @author Andrea Salcedo 10-10666
  */
 public class Nodo extends Agent {
-    private HashMap <String,File> catalogo;
+    private HashMap <String,Documento> catalogo;
     private String archivoObjetivo;
-//    private Set<AID> agentes
 
     @Override
     protected void setup() {
+
         DFAgentDescription dfd = new DFAgentDescription();
         ServiceDescription sd = new ServiceDescription();
 
@@ -42,19 +42,16 @@ public class Nodo extends Agent {
             archivoObjetivo = (String) args[0];
             System.out.println("Archivo objetivo: " + archivoObjetivo);
             System.out.println("Modo: Solicitante");
-/*            dfd.setName(getAID());
-            sd.setType("Solicitante");
-            sd.setName("compartir_archivos");
-            dfd.addServices(sd);*/
             addBehaviour(new PedirCatalago());
 
         } else {
             // Valores iniciales
-            File archPrueba = new File("ejemplo1.txt");
-            File archPrueba2 = new File("ejemplo2.txt");
-            File archPrueba3 = new File("conversion.png");
+            Documento archPrueba = new Documento("ejemplo1.txt");
+            Documento archPrueba2 = new Documento("ejemplo2.txt");
+            Documento archPrueba3 = new Documento("conversion.png");
 
             catalogo = new HashMap(10);
+
             catalogo.put("ejemplo1.txt", archPrueba);
             catalogo.put("ejemplo2.txt", archPrueba2);
             catalogo.put("conversion.png", archPrueba3);
@@ -71,8 +68,7 @@ public class Nodo extends Agent {
                     // Registrar el servicio
             try {
                 DFService.register(this, dfd);
-            }
-            catch (FIPAException fe) {
+            } catch (FIPAException fe) {
                 fe.printStackTrace();
             }
             System.out.println("Preparado para compartir archivos");
@@ -104,8 +100,8 @@ public class Nodo extends Agent {
                             reply.setPerformative(ACLMessage.PROPOSE);
                             reply.setContent(msg.getContent());
                             estado = 1;
-                        }
-                        else {
+
+                        } else {
 
                             // Busca si existen archivos que contiene el substring dado
                             Iterator it = (catalogo.keySet()).iterator();
@@ -131,46 +127,43 @@ public class Nodo extends Agent {
                                 reply.setPerformative(ACLMessage.PROPOSE);
                                 reply.setContent(strMensaje);
                                 estado = 1;
-                            }
-                            else {
+
+                            } else {
                                 System.out.println("Refuse");
                                 reply.setPerformative(ACLMessage.REFUSE);
                                 reply.setContent("Ningun archivo disponible");
                             }
                         }
                         myAgent.send(reply);
-
-                    }
-                    else {
+                    } else {
                         block();
                     }
-                    break;
+                break;
                 case 1:
                     mt = MessageTemplate.MatchPerformative(ACLMessage.ACCEPT_PROPOSAL);
                     msg = myAgent.receive(mt);
+
                     if (msg != null) {
-                        //TODO Transferencia del archivo
-                        File archivoT = new File(msg.getContent());
-                        Path path = archivoT.toPath();
+                        //Transferencia del archivo
+                        Documento doc = catalogo.get(msg.getContent());
 
                         try {
-                            byte[] data = Files.readAllBytes(path);
                             ACLMessage msgTransf = msg.createReply();
                             msgTransf.setPerformative(ACLMessage.INFORM);
-                            msgTransf.setByteSequenceContent(data);
+                            msgTransf.setByteSequenceContent(doc.getContenidoByte());
                             msgTransf.addUserDefinedParameter("file-name", msg.getContent());
                             myAgent.send(msgTransf);
+                            doc.incrDescargas();
                             System.out.println("Se realizo la transferencia del archivo.");
 
                         } catch (IOException ex) {
                             Logger.getLogger(Nodo.class.getName()).log(Level.SEVERE, null, ex);
                         }
                         estado = 2;
-                    }
-                    else {
+                    } else {
                         block();
                     }
-                    break;
+                break;
             }
         }
 
@@ -218,16 +211,16 @@ public class Nodo extends Agent {
                         myAgent.send(cfp);
                         nroAgentesEncontrados = result.length;
                         estado = 1;
+
                     } else {
                         System.out.println("No se encontro el servicio");
                         myAgent.doDelete();
                     }
-
                 } catch (FIPAException fe) {
                     fe.printStackTrace();
                 }
 
-                break;
+            break;
             case 1:
                 // Receive all proposals/refusals from seller agents
                 ACLMessage reply = myAgent.receive(mt);
@@ -250,6 +243,8 @@ public class Nodo extends Agent {
                             catalogo_solicitado +=
                                 reply.getSender().getName() + " -----> " + archivos[i] + "\n";
                         }
+
+                        System.out.println("Numero de archivos encontrados: " + archivos.length);
                         System.out.println("CATALOGO SOLICITADO: \n" + catalogo_solicitado);
 
                         ACLMessage order = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
@@ -264,12 +259,12 @@ public class Nodo extends Agent {
 
                     }
                 }
-                break;
+            break;
             case 2:
                 // Receive all proposals/refusals from seller agents
                 reply = myAgent.receive(mt);
                 if (reply != null) {
-                    //TODO Transferencia del archivo
+
                     if (reply.getPerformative() == ACLMessage.INFORM) {
 
                         String nombreArch = reply.getUserDefinedParameter("file-name");
@@ -289,23 +284,20 @@ public class Nodo extends Agent {
                         catalogo_solicitado = "No se encontraron resultados";
                     }
                     estado = 3;
-                }
-                else {
+                } else {
                     block();
                 }
-                break;
+            break;
             }
         }
 
         @Override
         public boolean done() {
             if (estado == 3) {
-                System.out.println("Archivo copiado");
+                System.out.println("Archivo copiado.");
                 myAgent.doDelete();
             }
             return estado == 3;
         }
-
     }
-
 }
