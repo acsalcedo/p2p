@@ -90,39 +90,40 @@ public class Nodo extends Agent {
                     System.out.println("Propose Archivo: " + msg.getContent());
                     reply.setPerformative(ACLMessage.PROPOSE);
                     reply.setContent(msg.getContent());
-                    myAgent.send(reply);
                 }
                 else {
 
                     // Busca si existen archivos que contiene el substring dado
                     Iterator it = (catalogo.keySet()).iterator();
                     boolean archivoDisponible = false;
+                    String strMensaje = "";
 
                     while (it.hasNext()) {
 
                         String str = (it.next()).toString();
 
+                        /* Si existe un archivo con el substring dado,
+                           agrega el nombre del archivo al mensaje. */
                         if (str != null && str.contains(msg.getContent())) {
-                            reply = msg.createReply();
 
-                            /* Si existe un archivo con el substring dado,
-                               no manda un mensaje de refusal. */
-                            //TODO Que mande un solo mensaje
                             archivoDisponible = true;
-                            System.out.println("Propose Archivo: " + str);
-                            reply.setPerformative(ACLMessage.PROPOSE);
-                            reply.setContent(str);
-                            myAgent.send(reply);
+                            strMensaje += str + " ";
                         }
                     }
-
-                    if (!archivoDisponible) {
+                    /* Si existe un archivo con el substring dado,
+                       no manda un mensaje de refusal. */
+                    if (archivoDisponible) {
+                        System.out.println("Propose archivo: " + strMensaje);
+                        reply.setPerformative(ACLMessage.PROPOSE);
+                        reply.setContent(strMensaje);
+                    }
+                    else {
                         System.out.println("Refuse");
                         reply.setPerformative(ACLMessage.REFUSE);
                         reply.setContent("Ningun archivo disponible");
-                        myAgent.send(reply);
                     }
                 }
+                myAgent.send(reply);
     	    }
             else {
               block();
@@ -185,8 +186,15 @@ public class Nodo extends Agent {
                     if (reply.getPerformative() == ACLMessage.PROPOSE) {
                         // This is an offer
                         catalogo_solicitado += "Numero de resultados: " + Integer.toString(nroRespuestas) + "\n";
-                        catalogo_solicitado +=
-                            reply.getSender().getName() + " -----> " + reply.getContent() + "\n";
+
+                        //Verificacion si la respuesta contiene mas de un nombre de archivo
+                        String[] archivos;
+                        archivos = (reply.getContent()).split(" ");
+
+                        for (int i = 0; i < archivos.length; ++i) {
+                            catalogo_solicitado +=
+                                reply.getSender().getName() + " -----> " + archivos[i] + "\n";
+                        }
                     }
 
                     if (catalogo_solicitado.isEmpty()) {
