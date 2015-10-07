@@ -8,9 +8,16 @@ import jade.domain.FIPAException;
 import jade.lang.acl.ACLMessage;
 import jade.lang.acl.MessageTemplate;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Set;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.Path;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Modulo: Agente Nodo
@@ -90,6 +97,24 @@ public class Nodo extends Agent {
                     System.out.println("Propose Archivo: " + msg.getContent());
                     reply.setPerformative(ACLMessage.PROPOSE);
                     reply.setContent(msg.getContent());
+                    myAgent.send(reply);
+
+                    //TODO Transferencia del archivo
+                    // File archivoT = new File(msg.getContent());
+                    // Path path = archivoT.toPath();
+                    //
+                    // try {
+                    //     byte[] data = Files.readAllBytes(path);
+                    //     ACLMessage msgTransf = msg.createReply();
+                    //     msgTransf.setPerformative(ACLMessage.INFORM);
+                    //     msgTransf.setByteSequenceContent(data);
+                    //     msgTransf.addUserDefinedParameter("file-name", msg.getContent());
+                    //     myAgent.send(msgTransf);
+                    //     System.out.println("Se realizo la transferencia del archivo.");
+                    //
+                    // } catch (IOException ex) {
+                    //     Logger.getLogger(Nodo.class.getName()).log(Level.SEVERE, null, ex);
+                    // }
                 }
                 else {
 
@@ -122,8 +147,8 @@ public class Nodo extends Agent {
                         reply.setPerformative(ACLMessage.REFUSE);
                         reply.setContent("Ningun archivo disponible");
                     }
+                    myAgent.send(reply);
                 }
-                myAgent.send(reply);
     	    }
             else {
               block();
@@ -183,6 +208,7 @@ public class Nodo extends Agent {
                     if (nroRespuestas >= nroAgentesEncontrados) {
                         estado = 2;
                     }
+
                     if (reply.getPerformative() == ACLMessage.PROPOSE) {
                         // This is an offer
                         catalogo_solicitado += "Numero de resultados: " + Integer.toString(nroRespuestas) + "\n";
@@ -196,6 +222,23 @@ public class Nodo extends Agent {
                                 reply.getSender().getName() + " -----> " + archivos[i] + "\n";
                         }
                     }
+
+                    //TODO Transferencia del archivo
+                    // if (reply.getPerformative() == ACLMessage.INFORM) {
+                    //
+                    //     String nombreArch = reply.getUserDefinedParameter("file-name");
+                    //     File f = new File(nombreArch + "-solicitante");
+                    //     byte[] contenido = reply.getByteSequenceContent();
+                    //
+                    //     try {
+                    //         FileOutputStream salida = new FileOutputStream(f);
+                    //         salida.write(contenido);
+                    //         salida.close();
+                    //     } catch (Exception e) {
+                    //         System.out.println(e.getMessage());
+                    //     }
+                    //     System.out.println("Archivo copiado");
+                    // }
 
                     if (catalogo_solicitado.isEmpty()) {
                         catalogo_solicitado = "No se encontraron resultados";
