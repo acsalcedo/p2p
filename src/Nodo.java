@@ -52,10 +52,12 @@ public class Nodo extends Agent {
             // Valores iniciales
             File archPrueba = new File("ejemplo1.txt");
             File archPrueba2 = new File("ejemplo2.txt");
+            File archPrueba3 = new File("conversion.png");
 
             catalogo = new HashMap(10);
             catalogo.put("ejemplo1.txt", archPrueba);
             catalogo.put("ejemplo2.txt", archPrueba2);
+            catalogo.put("conversion.png", archPrueba3);
             System.out.println("Modo: Distribuidor");
 
             dfd.setName(getAID());
@@ -83,76 +85,101 @@ public class Nodo extends Agent {
         System.out.println("Nodo "+getAID().getName()+ " finalizado");
     }
 
-    private class SolicitudArchivos extends CyclicBehaviour {
+    private class SolicitudArchivos extends Behaviour {
+        MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.CFP);
+        private int estado = 0;
+
         @Override
         public void action() {
-            MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.CFP);
-            ACLMessage msg = myAgent.receive(mt);
-    	    if (msg != null) {
-                // CFP Message received. Process it
-                System.out.println("Peticion recibida de: " + msg.getSender().getName());
-                ACLMessage reply = msg.createReply();
+            switch (estado) {
+                case 0:
+                    ACLMessage msg = myAgent.receive(mt);
+                    if (msg != null) {
+                        // CFP Message received. Process it
+                        System.out.println("Peticion recibida de: " + msg.getSender().getName());
+                        ACLMessage reply = msg.createReply();
 
-                if (catalogo != null && (catalogo.get(msg.getContent())!= null)) {
-                    System.out.println("Propose Archivo: " + msg.getContent());
-                    reply.setPerformative(ACLMessage.PROPOSE);
-                    reply.setContent(msg.getContent());
-                    myAgent.send(reply);
-
-                    //TODO Transferencia del archivo
-                    // File archivoT = new File(msg.getContent());
-                    // Path path = archivoT.toPath();
-                    //
-                    // try {
-                    //     byte[] data = Files.readAllBytes(path);
-                    //     ACLMessage msgTransf = msg.createReply();
-                    //     msgTransf.setPerformative(ACLMessage.INFORM);
-                    //     msgTransf.setByteSequenceContent(data);
-                    //     msgTransf.addUserDefinedParameter("file-name", msg.getContent());
-                    //     myAgent.send(msgTransf);
-                    //     System.out.println("Se realizo la transferencia del archivo.");
-                    //
-                    // } catch (IOException ex) {
-                    //     Logger.getLogger(Nodo.class.getName()).log(Level.SEVERE, null, ex);
-                    // }
-                }
-                else {
-
-                    // Busca si existen archivos que contiene el substring dado
-                    Iterator it = (catalogo.keySet()).iterator();
-                    boolean archivoDisponible = false;
-                    String strMensaje = "";
-
-                    while (it.hasNext()) {
-
-                        String str = (it.next()).toString();
-
-                        /* Si existe un archivo con el substring dado,
-                           agrega el nombre del archivo al mensaje. */
-                        if (str != null && str.contains(msg.getContent())) {
-
-                            archivoDisponible = true;
-                            strMensaje += str + " ";
+                        if (catalogo != null && (catalogo.get(msg.getContent())!= null)) {
+                            System.out.println("Propose Archivo: " + msg.getContent());
+                            reply.setPerformative(ACLMessage.PROPOSE);
+                            reply.setContent(msg.getContent());
+                            estado = 1;
                         }
-                    }
-                    /* Si existe un archivo con el substring dado,
-                       no manda un mensaje de refusal. */
-                    if (archivoDisponible) {
-                        System.out.println("Propose archivo: " + strMensaje);
-                        reply.setPerformative(ACLMessage.PROPOSE);
-                        reply.setContent(strMensaje);
+                        else {
+
+                            // Busca si existen archivos que contiene el substring dado
+                            Iterator it = (catalogo.keySet()).iterator();
+                            boolean archivoDisponible = false;
+                            String strMensaje = "";
+
+                            while (it.hasNext()) {
+
+                                String str = (it.next()).toString();
+
+                                /* Si existe un archivo con el substring dado,
+                                   agrega el nombre del archivo al mensaje. */
+                                if (str != null && str.contains(msg.getContent())) {
+
+                                    archivoDisponible = true;
+                                    strMensaje += str + " ";
+                                }
+                            }
+                            /* Si existe un archivo con el substring dado,
+                               no manda un mensaje de refusal. */
+                            if (archivoDisponible) {
+                                System.out.println("Propose archivo: " + strMensaje);
+                                reply.setPerformative(ACLMessage.PROPOSE);
+                                reply.setContent(strMensaje);
+                                estado = 1;
+                            }
+                            else {
+                                System.out.println("Refuse");
+                                reply.setPerformative(ACLMessage.REFUSE);
+                                reply.setContent("Ningun archivo disponible");
+                            }
+                        }
+                        myAgent.send(reply);
+
                     }
                     else {
-                        System.out.println("Refuse");
-                        reply.setPerformative(ACLMessage.REFUSE);
-                        reply.setContent("Ningun archivo disponible");
+                        block();
                     }
-                    myAgent.send(reply);
-                }
-    	    }
-            else {
-              block();
+                    break;
+                case 1:
+                    mt = MessageTemplate.MatchPerformative(ACLMessage.ACCEPT_PROPOSAL);
+                    msg = myAgent.receive(mt);
+                    if (msg != null) {
+                        //TODO Transferencia del archivo
+                        File archivoT = new File(msg.getContent());
+                        Path path = archivoT.toPath();
+
+                        try {
+                            byte[] data = Files.readAllBytes(path);
+                            ACLMessage msgTransf = msg.createReply();
+                            msgTransf.setPerformative(ACLMessage.INFORM);
+                            msgTransf.setByteSequenceContent(data);
+                            msgTransf.addUserDefinedParameter("file-name", msg.getContent());
+                            myAgent.send(msgTransf);
+                            System.out.println("Se realizo la transferencia del archivo.");
+
+                        } catch (IOException ex) {
+                            Logger.getLogger(Nodo.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                        estado = 2;
+                    }
+                    else {
+                        block();
+                    }
+                    break;
             }
+        }
+
+        public boolean done(){
+            if (estado == 2) {
+                mt = MessageTemplate.MatchPerformative(ACLMessage.CFP);
+                estado = 0;
+            }
+            return estado == 2;
         }
     }
 
@@ -161,6 +188,7 @@ public class Nodo extends Agent {
         private int estado = 0;
         private int nroRespuestas = 0;
         private int nroAgentesEncontrados = 0;
+        private int selector = 0; // variable temporal para seleccionar un archivo
         private String catalogo_solicitado = "";
 
         @Override
@@ -173,6 +201,7 @@ public class Nodo extends Agent {
                 sd.setType("Publicista");
                 template.addServices(sd);
                 try {
+
                     DFAgentDescription[] result = DFService.search(myAgent, template);
                     // Send the cfp to all sellers
                     if (result != null && result.length > 0) {
@@ -221,28 +250,45 @@ public class Nodo extends Agent {
                             catalogo_solicitado +=
                                 reply.getSender().getName() + " -----> " + archivos[i] + "\n";
                         }
-                    }
+                        System.out.println("CATALOGO SOLICITADO: \n" + catalogo_solicitado);
 
+                        ACLMessage order = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
+                        order.addReceiver(reply.getSender());
+                        order.setContent(archivos[0]);
+                        order.setConversationId("Transferencia");
+                        order.setReplyWith("order"+System.currentTimeMillis());
+                        myAgent.send(order);
+                        // Prepare the template to get the purchase order reply
+                        mt = MessageTemplate.and(MessageTemplate.MatchConversationId("Transferencia"),
+                                               MessageTemplate.MatchInReplyTo(order.getReplyWith()));
+
+                    }
+                }
+                break;
+            case 2:
+                // Receive all proposals/refusals from seller agents
+                reply = myAgent.receive(mt);
+                if (reply != null) {
                     //TODO Transferencia del archivo
-                    // if (reply.getPerformative() == ACLMessage.INFORM) {
-                    //
-                    //     String nombreArch = reply.getUserDefinedParameter("file-name");
-                    //     File f = new File(nombreArch + "-solicitante");
-                    //     byte[] contenido = reply.getByteSequenceContent();
-                    //
-                    //     try {
-                    //         FileOutputStream salida = new FileOutputStream(f);
-                    //         salida.write(contenido);
-                    //         salida.close();
-                    //     } catch (Exception e) {
-                    //         System.out.println(e.getMessage());
-                    //     }
-                    //     System.out.println("Archivo copiado");
-                    // }
+                    if (reply.getPerformative() == ACLMessage.INFORM) {
+
+                        String nombreArch = reply.getUserDefinedParameter("file-name");
+                        File f = new File("solicitante-" + nombreArch);
+                        byte[] contenido = reply.getByteSequenceContent();
+
+                        try {
+                            FileOutputStream salida = new FileOutputStream(f);
+                            salida.write(contenido);
+                            salida.close();
+                        } catch (Exception e) {
+                            System.out.println(e.getMessage());
+                        }
+                    }
 
                     if (catalogo_solicitado.isEmpty()) {
                         catalogo_solicitado = "No se encontraron resultados";
                     }
+                    estado = 3;
                 }
                 else {
                     block();
@@ -253,11 +299,11 @@ public class Nodo extends Agent {
 
         @Override
         public boolean done() {
-            if ( estado == 2 ) {
-                System.out.println("CATALOGO SOLICITADO: \n" + catalogo_solicitado);
+            if (estado == 3) {
+                System.out.println("Archivo copiado");
                 myAgent.doDelete();
             }
-            return estado == 2  ;
+            return estado == 3;
         }
 
     }

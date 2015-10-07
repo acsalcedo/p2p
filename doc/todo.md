@@ -11,3 +11,4 @@
 - [ ] Opciones: minishell, leer de un archivo los archivos a buscar.
 - [ ] Preguntar sobre si se debe descargar de varios peers a la vez.
 - [ ] Descargar diferentes tipos de archivos. (pdf: iText)
+- [ ] En el switch hacer un case 3 donde maneje la recepción del archivo.
