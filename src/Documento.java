@@ -1,6 +1,17 @@
+import java.io.BufferedInputStream;
+import java.io.FileInputStream;
+import java.io.Serializable;
+import java.io.UnsupportedEncodingException;
+import java.io.File;
 
-import java.io.*;
-import java.util.Date;
+/**
+    Clase: Documento
+    Descripción: Clase para traslado de archivos en red.
+        (Solo para propósitos acádemicos)
+    @author: Daniel Leones 09-10977
+    @version: 1.1
+    Fecha: 10/10/2015
+*/
 public class Documento implements Serializable {
 
     private byte[] contenido;
@@ -19,13 +30,19 @@ public class Documento implements Serializable {
             entrada.read(temp,0,temp.length);
             entrada.close();
             contenido = temp;
+            this.camino = camino;
+            nombre = archivo.getName();
         } catch(Exception e) {
             System.out.println("El archivo dado no existe.");
         }
+    }
 
-        this.camino = camino;
-        nombre = archivo.getName();
-
+    public Documento(String nombreArchivo, byte[] contenido) {
+        this.contenido = contenido;
+        nombre = nombreArchivo;
+        descargas = 0;
+        //Suponer el archivo sobre directorio actual
+        camino = nombreArchivo;
     }
 
     public String getNombre() {
