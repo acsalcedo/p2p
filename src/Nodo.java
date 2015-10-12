@@ -54,6 +54,8 @@ public class Nodo extends Agent {
             Documento archPrueba2 = new Documento("ejemplo2.txt");
             Documento archPrueba3 = new Documento("conversion.png");
 
+            archPrueba2.incrDescargas();
+
             catalogo.put("ejemplo1.txt", archPrueba);
             catalogo.put("ejemplo2.txt", archPrueba2);
             catalogo.put("conversion.png", archPrueba3);
@@ -125,7 +127,8 @@ public class Nodo extends Agent {
                         if (str != null && str.contains(msg.getContent())) {
 
                             archivoDisponible = true;
-                            strMensaje += str + " ";
+
+                            strMensaje += str + ":" + (catalogo.get(str)).getDescargas() + " ";
                         }
                     }
                     /* Si existe un archivo con el substring dado,
@@ -260,7 +263,6 @@ public class Nodo extends Agent {
                         }
                     }
 
-
                     if (nroRespuestas >= nroAgentesEncontrados) {
                         System.out.println("Numero de resultados: " + Integer.toString(nroRespuestas));
                         System.out.println("Numero de archivos encontrados: " + nroArchivosEncontrados);
@@ -275,7 +277,25 @@ public class Nodo extends Agent {
                         && archivosMejorDistribuidor.length > 0) {
                     System.out.println("Peer seleccionado: " + mejorDistribuidor.getName());
                     order.addReceiver(mejorDistribuidor);
-                    order.setContent(archivosMejorDistribuidor[0]);
+
+                    //Elige el archivo mas descargado
+
+                    String archivoMasDescargado = null;
+                    int masDescargas = -1;
+
+                    for (int i = 0; i < archivosMejorDistribuidor.length; ++i) {
+
+                        String[] archDescagas = (archivosMejorDistribuidor[i]).split(":");
+
+                        int descargas = Integer.parseInt(archDescagas[1]);
+
+                        if (descargas > masDescargas) {
+                            archivoMasDescargado = archDescagas[0];
+                            masDescargas = descargas;
+                        }
+                    }
+
+                    order.setContent(archivoMasDescargado);
                     order.setConversationId("Transferencia");
                     order.setReplyWith("order" + System.currentTimeMillis());
                     myAgent.send(order);
@@ -296,7 +316,7 @@ public class Nodo extends Agent {
                         // Escribir al sistema de archivos y
                         // agregarlo al catalogo del agente
                         String nombreArch = reply.getUserDefinedParameter("file-name");
-                        File f = new File("solicitante-" + nombreArch);
+                        File f = new File(nombreArch);
                         byte[] contenido = reply.getByteSequenceContent();
                         Documento nuevoArch = new Documento(nombreArch, contenido);
 
