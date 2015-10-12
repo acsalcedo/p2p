@@ -35,8 +35,8 @@ import com.sun.management.OperatingSystemMXBean;
 public class Nodo extends Agent {
     private HashMap <String,Documento> catalogo;
     private String archivoObjetivo;
-    private String script;
-    private String codigo;
+    private Documento script;
+    private Documento codigo;
     /*private AID[] agente = {
             myAgent.getAID()
         };*/
@@ -60,9 +60,9 @@ public class Nodo extends Agent {
         // Solicitar cpu
         } else if (args != null && args.length > 1) {
 
-            script = (String) args[0];
-            codigo = (String) args[1];
-            System.out.println("Script y codigo a distribuir: " + script + " " + codigo);
+            script = new Documento((String) args[0]);
+            codigo = new Documento((String) args[1]);
+            System.out.println("Script y codigo a distribuir: " + args[0] + " " + args[1]);
 
             addBehaviour(new BusquedaCPU());
 
@@ -104,6 +104,7 @@ public class Nodo extends Agent {
         addBehaviour(new ManejarSolicitudArchivos());
         addBehaviour(new ManejarTransferencia());
         addBehaviour(new ManejarSolicitudCPU());
+        addBehaviour(new ManejarScriptCodigo());
 
     }
 
@@ -200,7 +201,6 @@ public class Nodo extends Agent {
                 block();
             }
         }
-
     }
 
     private static double getCpuPercentage() {
@@ -215,29 +215,95 @@ public class Nodo extends Agent {
             // Ignorar, además, los mensajes hacia si mismo
             /*MessageTemplate mt = MessageTemplate.and(MessageTemplate.MatchPerformative(ACLMessage.ACCEPT_PROPOSAL),
                                            MessageTemplate.not(MessageTemplate.MatchReceiver()));*/
-            MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.ACCEPT_PROPOSAL);
+            MessageTemplate mt = MessageTemplate.and(MessageTemplate.MatchConversationId("Transferencia"),
+                               MessageTemplate.MatchPerformative(ACLMessage.ACCEPT_PROPOSAL));
 
             ACLMessage msg = myAgent.receive(mt);
             if (msg != null) {
                 //Transferencia del archivo
                 Documento doc = catalogo.get(msg.getContent());
 
-                //try {
-                    ACLMessage msgTransf = msg.createReply();
-                    msgTransf.setPerformative(ACLMessage.INFORM);
-                    msgTransf.setByteSequenceContent(doc.getContenidoByte());
-                    msgTransf.addUserDefinedParameter("file-name", msg.getContent());
-                    myAgent.send(msgTransf);
-                    doc.incrDescargas();
-                    System.out.println("Se realizo la transferencia del archivo.");
+                ACLMessage msgTransf = msg.createReply();
+                msgTransf.setPerformative(ACLMessage.INFORM);
+                msgTransf.setByteSequenceContent(doc.getContenidoByte());
+                msgTransf.addUserDefinedParameter("file-name", msg.getContent());
+                myAgent.send(msgTransf);
+                doc.incrDescargas();
+                System.out.println("Se realizo la transferencia del archivo.");
 
-                /*} catch (IOException ex) {
-                    Logger.getLogger(Nodo.class.getName()).log(Level.SEVERE, null, ex);
-                }*/
                 //estado = 2;
             } else {
                 block();
             }
+        }
+    }
+    private class ManejarScriptCodigo extends Behaviour {
+
+        private int estado = 0;
+        private String scriptEjecutar = null;
+        private String codigoEjecutar = null;
+
+        @Override
+        public void action() {
+
+            switch (estado) {
+            case 0:
+                MessageTemplate mt = MessageTemplate.and(MessageTemplate.MatchConversationId("Script-Codigo"),
+                                    MessageTemplate.MatchPerformative(ACLMessage.ACCEPT_PROPOSAL));
+
+
+                ACLMessage msg = myAgent.receive(mt);
+                if (msg != null) {
+                    //Transferencia del archivo
+
+                    String tipo = msg.getUserDefinedParameter("file-type");
+                    String nombreArch = msg.getUserDefinedParameter("file-name");
+                    File f = new File(tipo + "-" + nombreArch);
+                    byte[] contenido = msg.getByteSequenceContent();
+                    Documento nuevoArch = new Documento(nombreArch, contenido);
+
+                    try {
+                        FileOutputStream salida = new FileOutputStream(f);
+                        salida.write(contenido);
+                        salida.close();
+                    } catch (Exception e) {
+                        Logger.getLogger(Nodo.class.getName()).log(Level.SEVERE, null, e);
+                    }
+
+                    if (tipo.equals("script")) {
+                        scriptEjecutar = nombreArch;
+                        ACLMessage msgTransf = msg.createReply();
+                        msgTransf.setConversationId("Script-Codigo");
+                        msgTransf.setPerformative(ACLMessage.INFORM);
+                        msgTransf.setContent("Mandar codigo");
+                        myAgent.send(msgTransf);
+                        System.out.println("Se recibio el script.");
+
+                    } else if (tipo.equals("codigo")) {
+                        codigoEjecutar = nombreArch;
+                        System.out.println("Se recibio el codigo.");
+                        estado = 1;
+                    }
+
+                } else {
+                    block();
+                }
+            break;
+            case 1:
+                //TODO ejecutar codigo
+                System.out.println("Ejecucion del codigo.");
+            break;
+            }
+        }
+
+        @Override
+        public boolean done() {
+            if (estado == 2) {
+                System.out.println("Codigo ejecutado.");
+                myAgent.doDelete();
+            }
+
+            return estado == 2;
         }
     }
 
@@ -372,7 +438,7 @@ public class Nodo extends Agent {
                         // Escribir al sistema de archivos y
                         // agregarlo al catalogo del agente
                         String nombreArch = reply.getUserDefinedParameter("file-name");
-                        File f = new File(nombreArch);
+                        File f = new File("solicitante-" + nombreArch);
                         byte[] contenido = reply.getByteSequenceContent();
                         Documento nuevoArch = new Documento(nombreArch, contenido);
 
@@ -387,6 +453,7 @@ public class Nodo extends Agent {
                             //System.out.println("Exception; BusquedaTransferenciaArchivos: "
                                                //+ e.getMessage());
                         }
+
 
                         System.out.println("Nuevo Archivo: " + nombreArch);
                     }
@@ -445,7 +512,7 @@ public class Nodo extends Agent {
                                 cfp.addReceiver(result[i].getName());
                             }
                         }
-                        cfp.setContent(script);
+                        //cfp.setContent(script);
                         cfp.setConversationId("Pedir_cpu");
                         cfp.setReplyWith("cfp"+System.currentTimeMillis()); // Unique value
 
@@ -454,7 +521,6 @@ public class Nodo extends Agent {
 
                         myAgent.send(cfp);
                         nroAgentesEncontrados = result.length-1;
-                        //System.out.println("nroAgentesEncontrados " + nroAgentesEncontrados);
                         estado = 1;
                     } else {
                         System.out.println("No se encontró el servicio");
@@ -474,18 +540,61 @@ public class Nodo extends Agent {
 
                     if (reply.getPerformative() == ACLMessage.PROPOSE) {
 
+                        double porcentajeCPU = Double.parseDouble(reply.getContent());
+
                         cpuDisponible +=
-                            reply.getSender().getName() + " con cpu: " + reply.getContent() + "\n";
+                            reply.getSender().getName() + " con % CPU utilizado: " + reply.getContent() + " %\n";
+
+                        if (porcentajeCPU < 40) {
+                            ACLMessage scriptMsg = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
+                            scriptMsg.addReceiver(reply.getSender());
+                            scriptMsg.setConversationId("Script-Codigo");
+                            scriptMsg.addUserDefinedParameter("file-type", "script");
+                            scriptMsg.addUserDefinedParameter("file-name", script.getNombre());
+                            scriptMsg.setByteSequenceContent(script.getContenidoByte());
+                            myAgent.send(scriptMsg);
+
+                            System.out.println("Se realizo la transferencia del script.");
+
+                            mt = MessageTemplate.and(MessageTemplate.MatchConversationId("Script-Codigo"),
+                                                MessageTemplate.MatchPerformative(ACLMessage.INFORM));
+                            estado = 2;
+                        }
                     }
 
                     if (nroRespuestas >= nroAgentesEncontrados) {
                         System.out.println("Numero de resultados: " + Integer.toString(nroRespuestas));
                         System.out.println("CPU Disponible: \n" + cpuDisponible);
-                        estado = 2;
+                        //estado = 2;
                     }
+
                 } else {
                     block();
                 }
+            break;
+            case 2:
+                // Recibir el confirmacion del envio del script
+                reply = myAgent.receive(mt);
+
+                if (reply != null) {
+                    if (reply.getPerformative() == ACLMessage.INFORM) {
+
+                        ACLMessage codigoMsg = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
+                        codigoMsg.addReceiver(reply.getSender());
+                        codigoMsg.setConversationId("Script-Codigo");
+                        codigoMsg.addUserDefinedParameter("file-type", "codigo");
+                        codigoMsg.addUserDefinedParameter("file-name", codigo.getNombre());
+                        codigoMsg.setByteSequenceContent(codigo.getContenidoByte());
+                        myAgent.send(codigoMsg);
+
+                        System.out.println("Se realizo la transferencia del codigo.");
+                    }
+
+                    estado = 3;
+                } else {
+                    block();
+                }
+
             break;
 
             }
@@ -493,12 +602,12 @@ public class Nodo extends Agent {
 
         @Override
         public boolean done() {
-            if (estado == 2) {
+            if (estado == 3) {
                 System.out.println("Script final.");
                 myAgent.doDelete();
             }
 
-            return estado == 2;
+            return estado == 3;
         }
     }
 }
