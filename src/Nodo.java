@@ -19,6 +19,9 @@ import java.nio.file.Paths;
 import java.nio.file.Path;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.lang.management.ManagementFactory;
+import com.sun.management.OperatingSystemMXBean;
+
 
 
 /**
@@ -32,6 +35,8 @@ import java.util.logging.Logger;
 public class Nodo extends Agent {
     private HashMap <String,Documento> catalogo;
     private String archivoObjetivo;
+    private String script;
+    private String codigo;
     /*private AID[] agente = {
             myAgent.getAID()
         };*/
@@ -41,13 +46,26 @@ public class Nodo extends Agent {
 
         DFAgentDescription dfd = new DFAgentDescription();
         ServiceDescription sd = new ServiceDescription();
+        ServiceDescription sd2 = new ServiceDescription();
 
         Object[] args = getArguments();
         catalogo = new HashMap(10);
-        if (args != null && args.length > 0) {
+
+        // Solicitar un archivo
+        if (args != null && args.length == 1) {
             archivoObjetivo = (String) args[0];
             System.out.println("Archivo objetivo: " + archivoObjetivo);
             addBehaviour(new BusquedaTransferenciaArchivos());
+
+        // Solicitar cpu
+        } else if (args != null && args.length > 1) {
+
+            script = (String) args[0];
+            codigo = (String) args[1];
+            System.out.println("Script y codigo a distribuir: " + script + " " + codigo);
+
+            addBehaviour(new BusquedaCPU());
+
         } else {
             // Valores iniciales para pruebas
             Documento archPrueba = new Documento("ejemplo1.txt");
@@ -62,10 +80,15 @@ public class Nodo extends Agent {
             System.out.println("Modo: Distribuidor");
         }
 
+
         dfd.setName(getAID());
         sd.setType("compartir_archivos");
         sd.setName("compartir_archivos");
         dfd.addServices(sd);
+
+        sd2.setType("compartir_cpu");
+        sd2.setName("compartir_cpu");
+        dfd.addServices(sd2);
 
         // Para separar las clases posiblemente, se pasa por referencia los
         // atributos de Nodo a las clases Behaviour.
@@ -76,9 +99,11 @@ public class Nodo extends Agent {
             fe.printStackTrace();
         }
         System.out.println("Preparado para compartir archivos");
+        System.out.println("Preparado para compartir CPU");
 
         addBehaviour(new ManejarSolicitudArchivos());
         addBehaviour(new ManejarTransferencia());
+        addBehaviour(new ManejarSolicitudCPU());
 
     }
 
@@ -94,7 +119,8 @@ public class Nodo extends Agent {
     }
 
     private class ManejarSolicitudArchivos extends CyclicBehaviour {
-        MessageTemplate mt = MessageTemplate.MatchPerformative(ACLMessage.CFP);
+        MessageTemplate mt = MessageTemplate.and(MessageTemplate.MatchConversationId("Pedir_catalogo"),
+                            MessageTemplate.MatchPerformative(ACLMessage.CFP));
         //private int estado = 0;
 
         @Override
@@ -152,6 +178,36 @@ public class Nodo extends Agent {
         }
 
     }
+
+    private class ManejarSolicitudCPU extends CyclicBehaviour {
+
+        MessageTemplate mt = MessageTemplate.and(MessageTemplate.MatchConversationId("Pedir_cpu"),
+                            MessageTemplate.MatchPerformative(ACLMessage.CFP));
+
+
+        @Override
+        public void action() {
+
+            ACLMessage msg = myAgent.receive(mt);
+            if (msg != null) {
+                System.out.println("Peticion de CPU recibida de: " + msg.getSender().getName());
+                ACLMessage reply = msg.createReply();
+
+                reply.setPerformative(ACLMessage.PROPOSE);
+                reply.setContent(Double.toString(getCpuPercentage()));
+                myAgent.send(reply);
+            } else {
+                block();
+            }
+        }
+
+    }
+
+    private static double getCpuPercentage() {
+        OperatingSystemMXBean osBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+        return osBean.getSystemCpuLoad() * 100;
+    }
+
 
     private class ManejarTransferencia extends CyclicBehaviour {
         @Override
@@ -354,6 +410,95 @@ public class Nodo extends Agent {
             }
 
             return estado == 4 || ningunResultado;
+        }
+    }
+
+
+
+    private class BusquedaCPU extends Behaviour {
+        private MessageTemplate mt;
+        private boolean ningunResultado = false;
+        private int estado = 0;
+        private int nroRespuestas = 0;
+        private int nroAgentesEncontrados = 0;
+        private String cpuDisponible = "";
+
+
+        @Override
+        public void action() {
+            switch (estado) {
+            case 0:
+                DFAgentDescription template = new DFAgentDescription();
+                ServiceDescription sd = new ServiceDescription();
+                ACLMessage cfp = new ACLMessage(ACLMessage.CFP);
+                sd.setType("compartir_cpu");
+                template.addServices(sd);
+                try {
+                    // Enviar mensajes de solicitudes de cpu
+                    DFAgentDescription[] result = DFService.search(myAgent, template);
+
+                    if (result != null && result.length > 1) {
+                        for (int i = 0; i < result.length; ++i) {
+                            // Descartar bucle. Dado que se envia el mensaje a si
+                            // mismo por su subscripción al servicio
+                            if (!result[i].getName().equals( (Object) myAgent.getAID() )) {
+                                cfp.addReceiver(result[i].getName());
+                            }
+                        }
+                        cfp.setContent(script);
+                        cfp.setConversationId("Pedir_cpu");
+                        cfp.setReplyWith("cfp"+System.currentTimeMillis()); // Unique value
+
+                        mt = MessageTemplate.and(MessageTemplate.MatchConversationId("Pedir_cpu"),
+                                           MessageTemplate.MatchInReplyTo(cfp.getReplyWith()));
+
+                        myAgent.send(cfp);
+                        nroAgentesEncontrados = result.length-1;
+                        //System.out.println("nroAgentesEncontrados " + nroAgentesEncontrados);
+                        estado = 1;
+                    } else {
+                        System.out.println("No se encontró el servicio");
+                        myAgent.doDelete();
+                    }
+                } catch (FIPAException fe) {
+                    fe.printStackTrace();
+                }
+
+            break;
+            case 1:
+                // Recibe todo los mensajes y los guarda para el estado posterior
+                ACLMessage reply = myAgent.receive(mt);
+                if (reply != null) {
+                    // Reply received
+                    nroRespuestas += 1;
+
+                    if (reply.getPerformative() == ACLMessage.PROPOSE) {
+
+                        cpuDisponible +=
+                            reply.getSender().getName() + " con cpu: " + reply.getContent() + "\n";
+                    }
+
+                    if (nroRespuestas >= nroAgentesEncontrados) {
+                        System.out.println("Numero de resultados: " + Integer.toString(nroRespuestas));
+                        System.out.println("CPU Disponible: \n" + cpuDisponible);
+                        estado = 2;
+                    }
+                } else {
+                    block();
+                }
+            break;
+
+            }
+        }
+
+        @Override
+        public boolean done() {
+            if (estado == 2) {
+                System.out.println("Script final.");
+                myAgent.doDelete();
+            }
+
+            return estado == 2;
         }
     }
 }
