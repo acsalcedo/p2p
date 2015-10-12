@@ -258,7 +258,7 @@ public class Nodo extends Agent {
 
                     String tipo = msg.getUserDefinedParameter("file-type");
                     String nombreArch = msg.getUserDefinedParameter("file-name");
-                    File f = new File(tipo + "-" + nombreArch);
+                    File f = new File(nombreArch);
                     byte[] contenido = msg.getByteSequenceContent();
                     Documento nuevoArch = new Documento(nombreArch, contenido);
 
@@ -292,6 +292,18 @@ public class Nodo extends Agent {
             case 1:
                 //TODO ejecutar codigo
                 System.out.println("Ejecucion del codigo.");
+
+                ProcessBuilder builder = new ProcessBuilder("sh", scriptEjecutar);
+                builder.redirectOutput(new File(codigoEjecutar+"-out.txt"));
+                builder.redirectError(new File(codigoEjecutar+"-out.txt"));
+
+                try {
+                    Process p = builder.start();
+                } catch (IOException ex) {
+                    Logger.getLogger(Nodo.class.getName()).log(Level.SEVERE, null, ex);
+                }
+
+                estado = 2;
             break;
             }
         }
@@ -300,7 +312,8 @@ public class Nodo extends Agent {
         public boolean done() {
             if (estado == 2) {
                 System.out.println("Codigo ejecutado.");
-                myAgent.doDelete();
+                estado = 0;
+                //myAgent.doDelete();
             }
 
             return estado == 2;
@@ -349,7 +362,6 @@ public class Nodo extends Agent {
 
                         myAgent.send(cfp);
                         nroAgentesEncontrados = result.length-1;
-                        //System.out.println("nroAgentesEncontrados " + nroAgentesEncontrados);
                         estado = 1;
                     } else {
                         System.out.println("No se encontró el servicio");
@@ -438,7 +450,7 @@ public class Nodo extends Agent {
                         // Escribir al sistema de archivos y
                         // agregarlo al catalogo del agente
                         String nombreArch = reply.getUserDefinedParameter("file-name");
-                        File f = new File("solicitante-" + nombreArch);
+                        File f = new File(nombreArch);
                         byte[] contenido = reply.getByteSequenceContent();
                         Documento nuevoArch = new Documento(nombreArch, contenido);
 
@@ -604,7 +616,7 @@ public class Nodo extends Agent {
         public boolean done() {
             if (estado == 3) {
                 System.out.println("Script final.");
-                myAgent.doDelete();
+                //myAgent.doDelete();
             }
 
             return estado == 3;

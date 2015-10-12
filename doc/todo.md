@@ -12,10 +12,13 @@
    - [x] Se puede elegir automaticamente el mejor peer.
    - [x] El mejor peer puede ser el que conteste mas rapido.
    - [x] El mejor peer puede ser el que tenga el archivo mas descargado.
-- [ ] Leer sobre parallel behaviour.
-- [ ] Opciones: minishell, leer de un archivo los archivos a buscar.
+- [x] Leer sobre parallel behaviour.
 - [x] Hacer otro behaviour para las transferencias.
 - [x] Eliminir.
+- [x] Se manda el script y el código al peer.
+- [x] Se ejecuta el script y código en el peer.
+- [ ] Acomodar código (agregar y eliminar comentarios).
+- [ ] Comprobar que la función utilizada para el porcentaje de CPU utilizado es la correcta.
 
 
 # Pruebas
