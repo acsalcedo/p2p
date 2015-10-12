@@ -5,12 +5,8 @@ import java.io.UnsupportedEncodingException;
 import java.io.File;
 
 /**
-    Clase: Documento
-    Descripción: Clase para traslado de archivos en red.
-        (Solo para propósitos acádemicos)
-    @author: Daniel Leones 09-10977
-    @version: 1.1
-    Fecha: 10/10/2015
+ *  Modulo: Documento
+ *  Descripcion: Clase para traslado de archivos en red.
 */
 public class Documento implements Serializable {
 
@@ -41,7 +37,6 @@ public class Documento implements Serializable {
         this.contenido = contenido;
         nombre = nombreArchivo;
         descargas = 0;
-        //Suponer el archivo sobre directorio actual
         camino = nombreArchivo;
     }
 
@@ -74,10 +69,6 @@ public class Documento implements Serializable {
        } catch (UnsupportedEncodingException uee) {
             System.out.println("Documento: "+ uee.getMessage());
        }
-
         return null;
-
     }
-
-
 }

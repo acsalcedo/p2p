@@ -22,6 +22,7 @@
 
 
 # Pruebas
+- [ ] Probar bien la solicitud de CPU.
 - [x] Misma PC
     - [x] Probar un solo distribuidor y un solo solicitante
     - [x] Probar un solo distribuidor y uno o varios solicitante
