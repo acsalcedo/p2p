@@ -18,6 +18,12 @@ import java.util.logging.Logger;
 import java.lang.management.ManagementFactory;
 import com.sun.management.OperatingSystemMXBean;
 
+/**
+    Cita:
+    "Porque yo sé muy bien los planes que tengo para ustedes
+    —afirma el Señor —, planes de bienestar y no de calamidad, a fin de darles
+    un futuro y una esperanza." Jeremías 29:11 NVI
+*/
 
 /**
  * Modulo: Agente Nodo
@@ -124,10 +130,13 @@ public class Nodo extends Agent {
 
                 /* Si el catalogo tiene el archivo solicitado, el peer le
                  * avisa al otro que lo tiene. */
-                if (catalogo != null && (catalogo.get(msg.getContent()) != null)) {
-                    System.out.println("Propose Archivo: " + msg.getContent());
+                Documento archSolicitado = catalogo.get(msg.getContent());
+                if (catalogo != null && archSolicitado != null) {
+                    System.out.println("Propose Archivo: " + msg.getContent() + ":" +
+                            Integer.toString(archSolicitado.getDescargas()));
                     reply.setPerformative(ACLMessage.PROPOSE);
-                    reply.setContent(msg.getContent());
+                    reply.setContent(msg.getContent() + ":" +
+                            Integer.toString(archSolicitado.getDescargas()));
 
                 } else {
 
@@ -383,8 +392,8 @@ public class Nodo extends Agent {
 
                         myAgent.send(cfp);
                         nroAgentesEncontrados = result.length-1;
+                        nroRespuestas = 0;
                         estado = 1;
-
                     } else {
                         System.out.println("No se encontró el servicio");
                         myAgent.doDelete();
@@ -429,27 +438,27 @@ public class Nodo extends Agent {
             break;
 
             case 2:
-
-                ACLMessage order = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
-
                 if (mejorDistribuidor != null && archivosMejorDistribuidor != null
                     && archivosMejorDistribuidor.length > 0) {
+
+                    ACLMessage order = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
 
                     System.out.println("Peer seleccionado: " + mejorDistribuidor.getName());
                     order.addReceiver(mejorDistribuidor);
 
                     //Elige el archivo mas descargado
-                    String archivoMasDescargado = null;
+                    //System.out.println("Prueba " + archivosMejorDistribuidor[0]);
+                    String[] archDescargas = archivosMejorDistribuidor[0].split(":");
+                    String archivoMasDescargado = archDescargas[0];
                     int masDescargas = -1;
+                    int descargas = -1;
 
-                    for (int i = 0; i < archivosMejorDistribuidor.length; ++i) {
+                    for (int i = 1; i < archivosMejorDistribuidor.length; ++i) {
 
-                        String[] archDescagas = (archivosMejorDistribuidor[i]).split(":");
-
-                        int descargas = Integer.parseInt(archDescagas[1]);
-
+                        archDescargas = archivosMejorDistribuidor[i].split(":");
+                        descargas = Integer.parseInt(archDescargas[1]);
                         if (descargas > masDescargas) {
-                            archivoMasDescargado = archDescagas[0];
+                            archivoMasDescargado = archDescargas[0];
                             masDescargas = descargas;
                         }
                     }
@@ -475,7 +484,6 @@ public class Nodo extends Agent {
                 reply = myAgent.receive(mt);
 
                 if (reply != null) {
-
                     if (reply.getPerformative() == ACLMessage.INFORM) {
 
                         // Se escribe al sistema de archivos y se agrega al catalogo del agente
@@ -490,10 +498,11 @@ public class Nodo extends Agent {
                             FileOutputStream salida = new FileOutputStream(f);
                             salida.write(contenido);
                             salida.close();
+                            System.out.println("Nuevo Archivo: " + nombreArch);
                         } catch (Exception e) {
                             Logger.getLogger(Nodo.class.getName()).log(Level.SEVERE, null, e);
                         }
-                        System.out.println("Nuevo Archivo: " + nombreArch);
+
                     }
                     estado = 4;
                 } else {
