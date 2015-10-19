@@ -195,7 +195,9 @@ public class Nodo extends Agent {
                 System.out.println("Peticion de CPU recibida de: " + msg.getSender().getName());
                 ACLMessage reply = msg.createReply();
                 reply.setPerformative(ACLMessage.PROPOSE);
-                reply.setContent(Double.toString(getCpuPercentage()));
+                String cpu = Double.toString(getCpuPercentage());
+                System.out.println("Porcentaje de CPU utilizado: " + cpu + " %");
+                reply.setContent(cpu);
                 myAgent.send(reply);
 
             } else {
@@ -536,6 +538,7 @@ public class Nodo extends Agent {
         private int nroRespuestas = 0;
         private int nroAgentesEncontrados = 0;
         private String cpuDisponible = "";
+        private AID mejorDistribuidor = null;
 
 
         @Override
@@ -593,37 +596,44 @@ public class Nodo extends Agent {
                         cpuDisponible +=
                             reply.getSender().getName() + " con % CPU utilizado: " + reply.getContent() + " %\n";
 
-                        /* Si el porcentaje de CPU es menor que 40%, se envia
-                         * el script y el codigo a ejecutar. */
-                        if (porcentajeCPU < 40) {
-
-                            ACLMessage scriptMsg = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
-                            scriptMsg.addReceiver(reply.getSender());
-                            scriptMsg.setConversationId("Script-Codigo");
-                            scriptMsg.addUserDefinedParameter("file-type", "script");
-                            scriptMsg.addUserDefinedParameter("file-name", script.getNombre());
-                            scriptMsg.setByteSequenceContent(script.getContenidoByte());
-                            myAgent.send(scriptMsg);
-
-                            System.out.println("Se realizo la transferencia del script.");
-
-                            // Template para recibir la respuesta de la recepcion del script.
-                            mt = MessageTemplate.and(MessageTemplate.MatchConversationId("Script-Codigo"),
-                                                MessageTemplate.MatchPerformative(ACLMessage.INFORM));
-                            estado = 2;
+                        /* Si el porcentaje de CPU es menor que 40% y es el
+                         * primer peer en contestar, se selecciona para enviar
+                         * el codigo. Si no selecciona el primer peer, selecciona
+                         * el primer que tenga un porcentaje de CPU menos que 40 */
+                        if ((porcentajeCPU < 40 && nroRespuestas == 1) ||
+                            (porcentajeCPU < 40 && mejorDistribuidor == null)) {
+                                mejorDistribuidor = reply.getSender();
                         }
                     }
 
                     if (nroRespuestas >= nroAgentesEncontrados) {
+
                         System.out.println("Numero de resultados: " + Integer.toString(nroRespuestas));
                         System.out.println("CPU Disponible: \n" + cpuDisponible);
-                        //estado = 2;
+
+                        // Se envia el script al mejor peer.
+                        ACLMessage scriptMsg = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
+                        scriptMsg.addReceiver(mejorDistribuidor);
+                        scriptMsg.setConversationId("Script-Codigo");
+                        scriptMsg.addUserDefinedParameter("file-type", "script");
+                        scriptMsg.addUserDefinedParameter("file-name", script.getNombre());
+                        scriptMsg.setByteSequenceContent(script.getContenidoByte());
+                        myAgent.send(scriptMsg);
+
+                        System.out.println("Se realizo la transferencia del script al peer " + mejorDistribuidor.getName());
+
+                        // Template para recibir la respuesta de la recepcion del script.
+                        mt = MessageTemplate.and(MessageTemplate.MatchConversationId("Script-Codigo"),
+                                            MessageTemplate.MatchPerformative(ACLMessage.INFORM));
+                        estado = 2;
+
                     }
                 } else {
                     block();
                 }
             break;
             case 2:
+
                 // Recepcion del mensaje de confirmacion del envio del script.
                 reply = myAgent.receive(mt);
 
